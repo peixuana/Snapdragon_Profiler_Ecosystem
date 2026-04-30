@@ -1,0 +1,14 @@
+[project]
+name = "snapdragon_profiler_ecosystem"
+version = "2026.04"
+description = "Snapdragon Profiler Ecosystem – a collection of tools for working with Snapdragon Profiler (SDP) data"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []
+
+[project.scripts]
+snapdragon-profiler-ecosystem = "main:main"
+sdp-csv-to-perfetto-json = "tools.converter.convert_sdp_csv_to_perfetto_json:main"
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
