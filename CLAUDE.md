@@ -13,7 +13,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 uv sync                                   # create venv, install deps
 uv run main.py --help                     # list registered tools
 uv run main.py converter <csv> [-o out.json | --output-dir dir/]
+uv run main.py split-renderstage <input.pftrace> <output.pftrace>
+uv run main.py split-renderstage --debug <input.pftrace>
+
 uv run python -m tools.converter.convert_sdp_csv_to_perfetto_json <csv>   # bypass dispatcher
+uv run python -m tools.converter.split_renderstage_by_process <input.pftrace> <output.pftrace>
+uv run split-renderstage-by-process <input.pftrace> <output.pftrace>      # console script
 
 uv run pytest                             # full suite
 uv run pytest -v
@@ -21,6 +26,8 @@ uv run pytest tests/test_convert_sdp_csv_to_perfetto_json.py::TestExampleCSV -v
 ```
 
 Commits must be DCO-signed (`git commit -s`). External PRs are scanned by Semgrep in CI.
+
+On Windows, if `uv run` fails while trying to remove `.venv\lib64` with `Access is denied`, close terminals/processes using `.venv`, remove and recreate `.venv` with `uv sync`, or use direct `python ...` invocation as a stdlib-only workaround for tools without runtime dependencies.
 
 ## Architecture
 
@@ -36,6 +43,10 @@ Counter vs slice disambiguation in trace mode is driven by the `Track` column: t
 Output always wraps events as `{"traceEvents": [...]}` with metadata events (`ph: "M"`, `process_name`/`thread_name`) prepended. `_write_perfetto()` is the single write path; `_metadata_events()` is the single metadata builder — reuse these when adding new event sources rather than open-coding JSON structure.
 
 **Batch / glob handling.** `resolve_input_files()` expands glob patterns and deduplicates by normalized path. When multiple inputs are given, `-o` is ignored (warned) and each input is written next to itself (or into `--output-dir`) with the basename + `.json`.
+
+**RenderStage splitter (`tools/converter/split_renderstage_by_process.py`).** This tool reads binary Perfetto `.pftrace` files using stdlib-only protobuf decode/encode helpers. It extracts `GpuRenderStageEvent` packets, resolves each event to a process, groups slices by process, then appends new process-scoped RenderStage tracks to the output trace while preserving the original trace content.
+
+Process ownership resolution is prioritized as: packet `trusted_pid`, stage-spec descriptions like `Process <name> [<pid>]`, Vulkan queue submission IDs, Vulkan debug-utils device context, then GPU context fallback. Debug mode (`--debug <input.pftrace>`) scans packet fields, trusted PIDs, track descriptors, interned names, and sample RenderStage events without writing an output file.
 
 ## Tests
 

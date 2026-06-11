@@ -12,3 +12,6 @@ wheels/
 # Input/output data files
 input/
 output/
+
+# Local AI tool state
+.claude/
