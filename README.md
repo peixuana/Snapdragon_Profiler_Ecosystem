@@ -26,6 +26,12 @@ This converter supports CSV files exported from both SDP capture modes:
 | System scheduling slices | `"ph": "X"` | Kernel scheduling events (e.g., Sched CPU) |
 | Metadata | `"ph": "M"` | Auto-generated `process_name` and `thread_name` labels |
 
+### RenderStage Splitter
+
+Split GPU RenderStage events in a Perfetto `.pftrace` by process. The tool reads a Perfetto trace, extracts `GpuRenderStageEvent` packets, resolves each event to a process when possible, and writes an augmented `.pftrace` with separate RenderStage tracks per process for easier analysis in [Perfetto UI](https://ui.perfetto.dev/).
+
+The tool also includes a debug mode that scans the input trace and prints packet, process, track, and RenderStage diagnostics.
+
 ## Installation Instructions
 
 ```bash
@@ -50,6 +56,9 @@ uv run main.py --help
 
 # Run a specific tool (e.g., converter)
 uv run main.py converter <tool-specific arguments ...>
+
+# Run the RenderStage splitter
+uv run main.py split-renderstage <input.pftrace> <output.pftrace>
 ```
 
 ### Converter Examples
@@ -75,6 +84,25 @@ You can also invoke the converter directly (bypassing the dispatcher):
 
 ```bash
 uv run python -m tools.converter.convert_sdp_csv_to_perfetto_json trace1.csv
+```
+
+### RenderStage Splitter Examples
+
+```bash
+# Split GPU RenderStage events into process-specific tracks
+uv run main.py split-renderstage input.pftrace output.pftrace
+
+# Inspect trace contents without writing an output file
+uv run main.py split-renderstage --debug input.pftrace
+```
+
+You can also invoke the RenderStage splitter directly (bypassing the dispatcher):
+
+```bash
+uv run python -m tools.converter.split_renderstage_by_process input.pftrace output.pftrace
+
+# Or use the uv-installed console script
+uv run split-renderstage-by-process input.pftrace output.pftrace
 ```
 
 ## Development

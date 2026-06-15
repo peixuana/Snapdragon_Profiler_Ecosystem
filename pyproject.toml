@@ -9,6 +9,7 @@ dependencies = []
 [project.scripts]
 snapdragon-profiler-ecosystem = "main:main"
 sdp-csv-to-perfetto-json = "tools.converter.convert_sdp_csv_to_perfetto_json:main"
+split-renderstage-by-process = "tools.converter.split_renderstage_by_process:main"
 
 [dependency-groups]
 dev = ["pytest>=8.0"]
