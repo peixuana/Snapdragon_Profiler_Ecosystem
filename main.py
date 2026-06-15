@@ -18,6 +18,7 @@ simply create a module under ``tools/`` with a ``main()`` function that uses
 Examples:
     python main.py converter input.csv -o output.json
     python main.py converter input1.csv input2.csv --output-dir output/
+    python main.py split-renderstage input.pftrace output.pftrace
 """
 
 import importlib
@@ -29,6 +30,7 @@ import sys
 # ---------------------------------------------------------------------------
 TOOLS_REGISTRY: dict[str, str] = {
     "converter": "tools.converter.convert_sdp_csv_to_perfetto_json",
+    "split-renderstage": "tools.converter.split_renderstage_by_process",
 }
 
 
@@ -61,6 +63,7 @@ def _print_help():
         print(f"  {name:20s} → {mod}")
     print("\nPass -h/--help after a tool name for tool-specific help.")
     print("Example: python main.py converter --help")
+    print("Example: python main.py split-renderstage --debug input.pftrace")
 
 
 if __name__ == "__main__":
