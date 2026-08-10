@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+#============================================================================================================
+#
+#                    Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+#                                SPDX-License-Identifier: BSD-3-Clause
+#
+#============================================================================================================
 set -e
 SRC="$(cd "$(dirname "$0")" && pwd)"
 BUILD="$SRC/build/native"
