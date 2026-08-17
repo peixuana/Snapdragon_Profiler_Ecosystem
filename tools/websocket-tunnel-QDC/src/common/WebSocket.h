@@ -60,7 +60,7 @@ namespace qdc
             std::string expectedAccept;  // Sec-WebSocket-Accept we expect back
         };
 
-        // Build a WebSocket client upgrade request for ws://host:port<path>. A fresh
+        // Build a WebSocket client upgrade request. A fresh
         // random Sec-WebSocket-Key is generated; expectedAccept is the value the
         // server must return in Sec-WebSocket-Accept for a valid handshake.
         // nosemgrep: javascript.lang.security.detect-insecure-websocket.detect-insecure-websocket

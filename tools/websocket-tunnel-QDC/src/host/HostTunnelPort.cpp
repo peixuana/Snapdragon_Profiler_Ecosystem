@@ -85,7 +85,7 @@ namespace qdc
     bool HostTunnelPort::ConnectAndHandshake()
     {
         // nosemgrep: javascript.lang.security.detect-insecure-websocket.detect-insecure-websocket
-        QDC_LOGI("[%s] connecting to ws://%s:%u", m_label.c_str(), m_remoteHost.c_str(), m_remoteWsPort);
+        QDC_LOGI("[%s] connecting to wss://%s:%u", m_label.c_str(), m_remoteHost.c_str(), m_remoteWsPort);
 
         m_serverFd = net::TcpConnect(m_remoteHost, m_remoteWsPort);
         if (m_serverFd == net::kInvalidSocket)
