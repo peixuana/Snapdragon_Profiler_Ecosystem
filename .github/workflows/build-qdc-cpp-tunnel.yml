@@ -313,25 +313,25 @@ jobs:
           ls -la pkg-linux/
 
           # ── Create archives ──────────────────────────────────────────────
-          (cd pkg-windows && zip "../QDC-CPP-Tunnel-Windows-${SAFE_TAG}.zip" *)
-          tar -czf "QDC-CPP-Tunnel-Linux-${SAFE_TAG}.tar.gz"         -C pkg-linux   .
+          (cd pkg-windows && zip "../QDC_SDP_Tunnel_Windows_${SAFE_TAG}.zip" *)
+          tar -czf "QDC_SDP_Tunnel_Linux_${SAFE_TAG}.tar.gz"         -C pkg-linux   .
 
           echo ""
           echo "=== Release archives ==="
-          ls -la QDC-CPP-Tunnel-*.zip QDC-CPP-Tunnel-*.tar.gz
+          ls -la QDC_SDP_Tunnel_*.zip QDC_SDP_Tunnel_*.tar.gz
 
       - name: Upload Windows package artifact
         uses: actions/upload-artifact@v5
         with:
           name: release-windows-zip
-          path: QDC-CPP-Tunnel-Windows-*.zip
+          path: QDC_SDP_Tunnel_Windows_*.zip
           if-no-files-found: error
 
       - name: Upload Linux package artifact
         uses: actions/upload-artifact@v5
         with:
           name: release-linux-tar
-          path: QDC-CPP-Tunnel-Linux-*.tar.gz
+          path: QDC_SDP_Tunnel_Linux_*.tar.gz
           if-no-files-found: error
 
   # ── Release: publish to GitHub Releases on tag push ────────────────────────
@@ -383,8 +383,8 @@ jobs:
 
           | Host OS | Package | Host CPUs supported |
           |---------|---------|---------------------|
-          | **Windows** | `QDC-CPP-Tunnel-Windows-<tag>.zip` | x86-64, ARM64 |
-          | **Linux**   | `QDC-CPP-Tunnel-Linux-<tag>.tar.gz` | x86-64, ARM64 (aarch64) |
+          | **Windows** | `QDC_SDP_Tunnel_Windows_<tag>.zip` | x86-64, ARM64 |
+          | **Linux**   | `QDC_SDP_Tunnel_Linux_<tag>.tar.gz` | x86-64, ARM64 (aarch64) |
 
           ---
 
@@ -425,5 +425,5 @@ jobs:
             --repo "${{ github.repository }}" \
             --title "QDC C++ Tunnel $TAG" \
             --notes-file "$NOTES_FILE" \
-            release/QDC-CPP-Tunnel-Windows-${SAFE_TAG}.zip \
-            release/QDC-CPP-Tunnel-Linux-${SAFE_TAG}.tar.gz
+            release/QDC_SDP_Tunnel_Windows_${SAFE_TAG}.zip \
+            release/QDC_SDP_Tunnel_Linux_${SAFE_TAG}.tar.gz

@@ -27,8 +27,8 @@ auto-selects the right binary for your machine:
 
 | Package | Contents |
 |---------|----------|
-| `QDC-CPP-Tunnel-Windows-<tag>.zip` | Windows host (x86-64 + ARM64) + aarch64 device binary |
-| `QDC-CPP-Tunnel-Linux-<tag>.tar.gz` | Linux host (x86-64 + ARM64) + aarch64 device binary |
+| `QDC_SDP_Tunnel_Windows_<tag>.zip` | Windows host (x86-64 + ARM64) + aarch64 device binary |
+| `QDC_SDP_Tunnel_Linux_<tag>.tar.gz` | Linux host (x86-64 + ARM64) + aarch64 device binary |
 
 ## One-Click Launcher
 
