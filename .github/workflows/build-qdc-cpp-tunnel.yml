@@ -10,6 +10,7 @@ on:
       - 'Add-Websocket-Tunnel-to-Connect-QDC-Device-through-SDP'
     tags:
       - 'v*'
+      - 'Latest'
     paths:
       - 'tools/websocket-tunnel-QDC/src/**'
       - '.github/workflows/build-qdc-cpp-tunnel.yml'
@@ -338,7 +339,7 @@ jobs:
   release:
     needs: [test, package]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/tags/Latest'
     permissions:
       contents: write  # needed to create GitHub Releases
 
@@ -420,6 +421,11 @@ jobs:
              - **Windows:** `connect-qdc-sdp-launcher.bat`
              - **Linux/macOS:** `./connect-qdc-sdp-launcher.sh`
           EOF
+
+          # Delete any existing release for this tag so a moving tag (e.g.
+          # "Latest") can be re-published with fresh assets. --cleanup-tag is
+          # omitted so the tag itself (just pushed) is preserved.
+          gh release delete "$TAG" --repo "${{ github.repository }}" --yes || true
 
           gh release create "$TAG" \
             --repo "${{ github.repository }}" \
