@@ -20,3 +20,13 @@ export QDC_API_KEY="your-api-key-here"
 
 # OPTIONAL: Override the QDC sessions API URL (defaults are usually fine)
 # export QDC_SESSIONS_URL="https://api.qualcomm.com/deviceloud/v1/sessions"
+
+
+
+# ==============================================================================
+# IOT-SPECIFIC settings (only used when QDC_CHIPSET_CATEGORY=IOT)
+# ==============================================================================
+#
+# Device root password. When set, device ssh/scp use password auth with no prompts
+# (via SSH_ASKPASS; Windows OpenSSH 8.6+). Leave unset to use SSH key auth instead.
+# export IOT_TARGET_PASSWORD="Put_your_password_here"
