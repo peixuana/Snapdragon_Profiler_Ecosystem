@@ -32,6 +32,35 @@ Split GPU RenderStage events in a Perfetto `.pftrace` by process. The tool reads
 
 The tool also includes a debug mode that scans the input trace and prints packet, process, track, and RenderStage diagnostics.
 
+### QDC WebSocket Tunnel (C++)
+
+A zero-dependency C++ reverse WebSocket tunnel for connecting Snapdragon Profiler (SDP) to QDC-hosted Android and Qualcomm Linux (IoT) devices. Two small self-contained static binaries — no JRE, DEX bundle, or Gradle required on either side.
+
+| Binary | Runs on | Role |
+|--------|---------|------|
+| `qdc-tunnel-target` | Android / Qualcomm Linux (aarch64) | WebSocket server + TCP multiplexer |
+| `qdc-tunnel-host` | Windows / Linux host (x86-64 or ARM64) | WebSocket client + TCP forwarder |
+
+Pre-built release packages (Windows ZIP and Linux tarball) are published to the [GitHub Releases](../../releases) page on each `v*` tag.
+
+#### Quick Start
+
+```bash
+# Build C++ binaries for this machine
+uv run qdc-tunnel-build
+
+# Run the host tunnel (after building)
+uv run qdc-tunnel-host --remote-host 127.0.0.1 --port-map 8900:6500 --port-map 8902:6502
+
+# Run the loopback smoke test
+uv run qdc-tunnel-test
+
+# One-click connection launcher (Windows)
+tools\websocket-tunnel-QDC\connect-qdc-sdp-launcher.bat
+```
+
+See [`tools/websocket-tunnel-QDC/README.md`](tools/websocket-tunnel-QDC/README.md) for the full connection guide and [`tools/websocket-tunnel-QDC/src/README.md`](tools/websocket-tunnel-QDC/src/README.md) for build details.
+
 ## Installation Instructions
 
 ```bash

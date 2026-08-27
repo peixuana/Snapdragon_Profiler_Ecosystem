@@ -1,0 +1,435 @@
+# Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Build QDC C++ Tunnel
+
+on:
+  push:
+    branches:
+      - main
+      - 'Add-Websocket-Tunnel-to-Connect-QDC-Device-through-SDP'
+    tags:
+      - 'v*'
+      - 'Latest'
+    paths:
+      - 'tools/websocket-tunnel-QDC/src/**'
+      - '.github/workflows/build-qdc-cpp-tunnel.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tools/websocket-tunnel-QDC/src/**'
+      - '.github/workflows/build-qdc-cpp-tunnel.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Build matrix: five configurations ───────────────────────────────────────
+  #   linux-native        x86_64 Linux host + device target (also drives smoke test)
+  #   linux-host-aarch64  ARM64 Linux host (musl static)
+  #   aarch64-cross       aarch64 device target (musl static)
+  #   windows-cross       x86_64 Windows host (llvm-mingw)
+  #   windows-cross-arm64 ARM64 Windows host (llvm-mingw)
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - name: linux-native
+            artifact: qdc-tunnel-linux-x86_64
+          - name: linux-host-aarch64
+            artifact: qdc-tunnel-host-linux-aarch64
+          - name: aarch64-cross
+            artifact: qdc-tunnel-aarch64
+          - name: windows-cross
+            artifact: qdc-tunnel-host-windows-x86_64
+          - name: windows-cross-arm64
+            artifact: qdc-tunnel-host-windows-arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install CMake and Ninja
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y cmake ninja-build
+
+      # ── linux-native: g++ from apt ─────────────────────────────────────────
+      - name: Install g++ (linux-native)
+        if: matrix.config.name == 'linux-native'
+        run: sudo apt-get install -y g++
+
+      # ── aarch64-cross: musl static cross-toolchain ─────────────────────────
+      # musl.cc is frequently unreachable from GitHub runners (curl error 28,
+      # connection timeout on port 443), so prefer the GitHub-hosted cross-tools
+      # release — always reachable from runners — and only fall back to the
+      # musl.cc mirror family if GitHub is unavailable. The toolchain cmake file
+      # auto-detects the compiler prefix for either layout.
+      - name: Download aarch64 musl cross-toolchain
+        if: matrix.config.name == 'aarch64-cross' || matrix.config.name == 'linux-host-aarch64'
+        run: |
+          set -euo pipefail
+          mkdir -p ~/qdc-toolchains
+          cd ~/qdc-toolchains
+
+          # 1) GitHub-hosted cross-tools release (extracts to aarch64-unknown-linux-musl/)
+          CT_URL="https://github.com/cross-tools/musl-cross/releases/download/20260515/aarch64-unknown-linux-musl.tar.xz"
+          if curl -fSL --connect-timeout 30 --retry 3 --retry-delay 5 -o ct.tar.xz "$CT_URL" \
+               && [ "$(stat -c%s ct.tar.xz)" -gt 1000000 ]; then
+            echo "==> Downloaded cross-tools toolchain from GitHub"
+            tar -xJf ct.tar.xz
+            rm ct.tar.xz
+            echo "QDC_MUSL_ROOT=$HOME/qdc-toolchains/aarch64-unknown-linux-musl" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          echo "==> GitHub cross-tools download failed, falling back to musl.cc mirrors..."
+
+          # 2) musl.cc mirror family (extracts to aarch64-linux-musl-cross/)
+          MIRRORS=(
+            "https://more.musl.cc/11/x86_64-linux-musl/aarch64-linux-musl-cross.tgz"
+            "https://more.musl.cc/10/x86_64-linux-musl/aarch64-linux-musl-cross.tgz"
+            "https://musl.cc/aarch64-linux-musl-cross.tgz"
+          )
+          for url in "${MIRRORS[@]}"; do
+            echo "==> Trying $url"
+            if curl -fSL --connect-timeout 30 --retry 3 --retry-delay 5 -o tc.tgz "$url" \
+                 && [ "$(stat -c%s tc.tgz)" -gt 1000000 ]; then
+              echo "==> Downloaded from $url"
+              tar -xzf tc.tgz
+              rm tc.tgz
+              echo "QDC_MUSL_ROOT=$HOME/qdc-toolchains/aarch64-linux-musl-cross" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            echo "==> Mirror failed, trying next..."
+          done
+
+          echo "ERROR: all aarch64 musl toolchain sources failed" >&2
+          exit 1
+
+      # ── windows-cross: llvm-mingw toolchain ───────────────────────────────
+      - name: Download llvm-mingw toolchain
+        if: matrix.config.name == 'windows-cross' || matrix.config.name == 'windows-cross-arm64'
+        run: |
+          MINGW_TAG=20240619
+          MINGW_ARCHIVE="llvm-mingw-${MINGW_TAG}-ucrt-ubuntu-20.04-x86_64.tar.xz"
+          mkdir -p ~/qdc-toolchains
+          curl -fsSL --retry 3 -L \
+            "https://github.com/mstorsjo/llvm-mingw/releases/download/${MINGW_TAG}/${MINGW_ARCHIVE}" \
+            -o /tmp/llvm-mingw.tar.xz
+          tar -xJf /tmp/llvm-mingw.tar.xz -C ~/qdc-toolchains
+          mv ~/qdc-toolchains/llvm-mingw-* ~/qdc-toolchains/llvm-mingw
+          rm /tmp/llvm-mingw.tar.xz
+          echo "QDC_MINGW_ROOT=$HOME/qdc-toolchains/llvm-mingw" >> "$GITHUB_ENV"
+
+      # ── Configure ─────────────────────────────────────────────────────────
+      - name: Configure (linux-native)
+        if: matrix.config.name == 'linux-native'
+        working-directory: tools/websocket-tunnel-QDC/src
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Configure (aarch64-cross)
+        if: matrix.config.name == 'aarch64-cross'
+        working-directory: tools/websocket-tunnel-QDC/src
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE=toolchains/aarch64-linux-musl.cmake
+
+      - name: Configure (linux-host-aarch64)
+        if: matrix.config.name == 'linux-host-aarch64'
+        working-directory: tools/websocket-tunnel-QDC/src
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE=toolchains/aarch64-linux-musl-host.cmake
+
+      - name: Configure (windows-cross)
+        if: matrix.config.name == 'windows-cross'
+        working-directory: tools/websocket-tunnel-QDC/src
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE=toolchains/x86_64-w64-mingw32.cmake
+
+      - name: Configure (windows-cross-arm64)
+        if: matrix.config.name == 'windows-cross-arm64'
+        working-directory: tools/websocket-tunnel-QDC/src
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE=toolchains/aarch64-w64-mingw32.cmake
+
+      # ── Build ─────────────────────────────────────────────────────────────
+      - name: Build
+        working-directory: tools/websocket-tunnel-QDC/src
+        run: cmake --build build
+
+      # ── Collect and stage artifacts ───────────────────────────────────────
+      - name: Stage linux-native artifacts
+        if: matrix.config.name == 'linux-native'
+        run: |
+          mkdir -p staging
+          cp tools/websocket-tunnel-QDC/src/build/qdc-tunnel-target staging/
+          cp tools/websocket-tunnel-QDC/src/build/qdc-tunnel-host staging/
+          ls -la staging/
+
+      - name: Stage aarch64-cross artifacts
+        if: matrix.config.name == 'aarch64-cross'
+        run: |
+          mkdir -p staging
+          cp tools/websocket-tunnel-QDC/src/build/qdc-tunnel-target staging/
+          ls -la staging/
+
+      - name: Stage linux-host-aarch64 artifacts
+        if: matrix.config.name == 'linux-host-aarch64'
+        run: |
+          mkdir -p staging
+          cp tools/websocket-tunnel-QDC/src/build/qdc-tunnel-host staging/
+          ls -la staging/
+
+      - name: Stage windows-cross artifacts
+        if: matrix.config.name == 'windows-cross'
+        run: |
+          mkdir -p staging
+          cp tools/websocket-tunnel-QDC/src/build/qdc-tunnel-host.exe staging/
+          ls -la staging/
+
+      - name: Stage windows-cross-arm64 artifacts
+        if: matrix.config.name == 'windows-cross-arm64'
+        run: |
+          mkdir -p staging
+          cp tools/websocket-tunnel-QDC/src/build/qdc-tunnel-host.exe staging/
+          ls -la staging/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: ${{ matrix.config.artifact }}
+          path: staging/
+          if-no-files-found: error
+
+  # ── Smoke test: linux-native only ────────────────────────────────────────────
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Download linux-native artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: qdc-tunnel-linux-x86_64
+          path: bin/
+
+      - name: Make binaries executable
+        run: chmod +x bin/qdc-tunnel-target bin/qdc-tunnel-host
+
+      - name: Run loopback smoke test
+        run: |
+          python3 tools/websocket-tunnel-QDC/src/tools/loopback_smoke_test.py \
+            bin/qdc-tunnel-target bin/qdc-tunnel-host
+
+  # ── Package: assemble two release archives (Windows host + Linux host) ───────
+  package:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Download linux-native artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: qdc-tunnel-linux-x86_64
+          path: artifacts/linux-native/
+
+      - name: Download aarch64 artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: qdc-tunnel-aarch64
+          path: artifacts/aarch64/
+
+      - name: Download linux host aarch64 artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: qdc-tunnel-host-linux-aarch64
+          path: artifacts/linux-aarch64/
+
+      - name: Download windows artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: qdc-tunnel-host-windows-x86_64
+          path: artifacts/windows/
+
+      - name: Download windows arm64 artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: qdc-tunnel-host-windows-arm64
+          path: artifacts/windows-arm64/
+
+      - name: Assemble release packages
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # Sanitize TAG for use as a filename (PR refs like "16/merge" contain "/").
+          SAFE_TAG="${TAG//\//-}"
+          TUNNEL_DIR=tools/websocket-tunnel-QDC
+
+          # QDC devices (Android + Qualcomm Linux IoT) are all aarch64, so both
+          # host packages ship the same aarch64 device binary (qdc-tunnel-target).
+          #
+          # Each package is a "fat" bundle carrying BOTH host CPU builds (x86_64 +
+          # aarch64). The launcher detects the host CPU at runtime and selects the
+          # matching qdc-tunnel-host-<arch> binary.
+
+          # ── Windows host package ─────────────────────────────────────────
+          #   connect-qdc-sdp-launcher.bat + config template
+          #   + qdc-tunnel-host-x86_64.exe + qdc-tunnel-host-arm64.exe (host)
+          #   + qdc-tunnel-target (aarch64 device)
+          mkdir -p pkg-windows
+          cp artifacts/windows/qdc-tunnel-host.exe               pkg-windows/qdc-tunnel-host-x86_64.exe
+          cp artifacts/windows-arm64/qdc-tunnel-host.exe         pkg-windows/qdc-tunnel-host-arm64.exe
+          cp artifacts/aarch64/qdc-tunnel-target                 pkg-windows/
+          cp "$TUNNEL_DIR/connect-qdc-sdp-launcher.bat"          pkg-windows/
+          cp "$TUNNEL_DIR/config.local.bat.template"             pkg-windows/
+          echo "=== Windows package ==="
+          ls -la pkg-windows/
+
+          # ── Linux host package ───────────────────────────────────────────
+          #   connect-qdc-sdp-launcher.sh + config template + qdc-ssh.sh helper
+          #   + qdc-tunnel-host-x86_64 + qdc-tunnel-host-aarch64 (host)
+          #   + qdc-tunnel-target (aarch64 device)
+          mkdir -p pkg-linux
+          cp artifacts/linux-native/qdc-tunnel-host              pkg-linux/qdc-tunnel-host-x86_64
+          cp artifacts/linux-aarch64/qdc-tunnel-host             pkg-linux/qdc-tunnel-host-aarch64
+          cp artifacts/aarch64/qdc-tunnel-target                 pkg-linux/
+          cp "$TUNNEL_DIR/connect-qdc-sdp-launcher.sh"           pkg-linux/
+          cp "$TUNNEL_DIR/config.local.sh.template"              pkg-linux/
+          cp "$TUNNEL_DIR/qdc-ssh.sh"                            pkg-linux/
+          chmod +x pkg-linux/qdc-tunnel-host-x86_64 pkg-linux/qdc-tunnel-host-aarch64 \
+                   pkg-linux/qdc-tunnel-target \
+                   pkg-linux/connect-qdc-sdp-launcher.sh pkg-linux/qdc-ssh.sh
+          echo "=== Linux package ==="
+          ls -la pkg-linux/
+
+          # ── Create archives ──────────────────────────────────────────────
+          (cd pkg-windows && zip "../QDC_SDP_Tunnel_Windows_${SAFE_TAG}.zip" *)
+          tar -czf "QDC_SDP_Tunnel_Linux_${SAFE_TAG}.tar.gz"         -C pkg-linux   .
+
+          echo ""
+          echo "=== Release archives ==="
+          ls -la QDC_SDP_Tunnel_*.zip QDC_SDP_Tunnel_*.tar.gz
+
+      - name: Upload Windows package artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: release-windows-zip
+          path: QDC_SDP_Tunnel_Windows_*.zip
+          if-no-files-found: error
+
+      - name: Upload Linux package artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: release-linux-tar
+          path: QDC_SDP_Tunnel_Linux_*.tar.gz
+          if-no-files-found: error
+
+  # ── Release: publish to GitHub Releases on tag push ────────────────────────
+  release:
+    needs: [test, package]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/tags/Latest'
+    permissions:
+      contents: write  # needed to create GitHub Releases
+
+    steps:
+      - name: Download Windows package
+        uses: actions/download-artifact@v5
+        with:
+          name: release-windows-zip
+          path: release/
+
+      - name: Download Linux package
+        uses: actions/download-artifact@v5
+        with:
+          name: release-linux-tar
+          path: release/
+
+      - name: List release assets
+        run: ls -la release/
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          SAFE_TAG="${TAG//\//-}"
+          NOTES_FILE="$(mktemp)"
+          cat > "$NOTES_FILE" <<'EOF'
+          ## QDC C++ Tunnel
+
+          Native C++ WebSocket reverse tunnel for Snapdragon Profiler on QDC devices.
+          No JVM or DEX bundle required — a single small static ELF (~200 KB) runs on
+          both QDC Android and Qualcomm Linux (IoT) targets (all aarch64).
+
+          ### Which package should I download?
+
+          Pick by your **host** OS. Each package is a fat bundle that includes
+          host binaries for **both x86-64 and ARM64** — the launcher auto-detects
+          your host CPU and picks the right one. Both packages also ship the same
+          aarch64 device binary (`qdc-tunnel-target`), which the launcher pushes
+          to the QDC device.
+
+          | Host OS | Package | Host CPUs supported |
+          |---------|---------|---------------------|
+          | **Windows** | `QDC_SDP_Tunnel_Windows_<tag>.zip` | x86-64, ARM64 |
+          | **Linux**   | `QDC_SDP_Tunnel_Linux_<tag>.tar.gz` | x86-64, ARM64 (aarch64) |
+
+          ---
+
+          ### Windows Package Contents
+
+          | File | Description |
+          |------|-------------|
+          | `connect-qdc-sdp-launcher.bat` | Windows one-click connection launcher (auto-selects host CPU) |
+          | `config.local.bat.template` | Config template — copy to `config.local.bat` and fill in your API key |
+          | `qdc-tunnel-host-x86_64.exe` | Host tunnel binary (Windows x86-64) |
+          | `qdc-tunnel-host-arm64.exe` | Host tunnel binary (Windows ARM64) |
+          | `qdc-tunnel-target` | Device tunnel binary (aarch64 static ELF — pushed to target via ADB/SCP) |
+
+          ### Linux Package Contents
+
+          | File | Description |
+          |------|-------------|
+          | `connect-qdc-sdp-launcher.sh` | Linux/macOS one-click connection launcher (auto-selects host CPU) |
+          | `config.local.sh.template` | Config template — copy to `config.local.sh` and fill in your API key |
+          | `qdc-tunnel-host-x86_64` | Host tunnel binary (Linux x86-64, static) |
+          | `qdc-tunnel-host-aarch64` | Host tunnel binary (Linux ARM64, static) |
+          | `qdc-tunnel-target` | Device tunnel binary (aarch64 static ELF — pushed to target via ADB/SCP) |
+          | `qdc-ssh.sh` | SSH helper for IoT device through localhost tunnel |
+
+          ---
+
+          ### Quick Start
+
+          1. Download and extract the package for your host OS.
+          2. Copy the config template and fill in your `QDC_API_KEY` and `SSH_KEY`.
+             Remove the `.template` suffix from the filename.
+          3. Run the launcher script:
+             - **Windows:** `connect-qdc-sdp-launcher.bat`
+             - **Linux/macOS:** `./connect-qdc-sdp-launcher.sh`
+          EOF
+
+          # Delete any existing release for this tag so a moving tag (e.g.
+          # "Latest") can be re-published with fresh assets. --cleanup-tag is
+          # omitted so the tag itself (just pushed) is preserved.
+          gh release delete "$TAG" --repo "${{ github.repository }}" --yes || true
+
+          gh release create "$TAG" \
+            --repo "${{ github.repository }}" \
+            --title "QDC C++ Tunnel $TAG" \
+            --notes-file "$NOTES_FILE" \
+            release/QDC_SDP_Tunnel_Windows_${SAFE_TAG}.zip \
+            release/QDC_SDP_Tunnel_Linux_${SAFE_TAG}.tar.gz

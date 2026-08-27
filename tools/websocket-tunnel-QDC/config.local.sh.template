@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+#============================================================================================================
+#  
+#                   Copyright (c) 2023, Qualcomm Innovation Center, Inc. All rights reserved.
+#                               SPDX-License-Identifier: BSD-3-Clause
+#  
+#============================================================================================================ 
+# ==============================================================================
+# Local configuration for connect-qdc-sdp.sh
+#
+# Copy this file to "config.local.sh" (in the same directory) and fill in your
+# values. config.local.sh is git-ignored so your secrets stay local.
+# ==============================================================================
+
+# REQUIRED: Path to your SSH private key
+export SSH_KEY="$HOME/.ssh/id_ed25519"
+
+# REQUIRED: Your QDC API key (from https://qdc.qualcomm.com)
+export QDC_API_KEY="your-api-key-here"
+
+# OPTIONAL: Override the QDC sessions API URL (defaults are usually fine)
+# export QDC_SESSIONS_URL="https://api.qualcomm.com/deviceloud/v1/sessions"
+
+
+
+# ==============================================================================
+# IOT-SPECIFIC settings (only used when QDC_CHIPSET_CATEGORY=IOT)
+# ==============================================================================
+#
+# Device root password. When set, device ssh/scp use password auth with no prompts
+# (via SSH_ASKPASS; Windows OpenSSH 8.6+). Leave unset to use SSH key auth instead.
+# export IOT_TARGET_PASSWORD="Put_your_password_here"

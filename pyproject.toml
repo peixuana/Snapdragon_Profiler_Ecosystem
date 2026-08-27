@@ -10,6 +10,10 @@ dependencies = []
 snapdragon-profiler-ecosystem = "main:main"
 sdp-csv-to-perfetto-json = "tools.converter.convert_sdp_csv_to_perfetto_json:main"
 split-renderstage-by-process = "tools.converter.split_renderstage_by_process:main"
+qdc-tunnel-build = "tools.qdc_tunnel_cpp:build_main"
+qdc-tunnel-host  = "tools.qdc_tunnel_cpp:host_main"
+qdc-tunnel-test  = "tools.qdc_tunnel_cpp:test_main"
+qdc-connect      = "tools.qdc_tunnel_cpp:connect_main"
 
 [dependency-groups]
 dev = ["pytest>=8.0"]
